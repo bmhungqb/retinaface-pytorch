@@ -197,6 +197,20 @@ python detect.py --network mobilenetv1 --weights retinaface_mv1.pth
 <img src="assets/mv2_large_selfi_632people.jpg">
 </div>
 
+### Export to ONNX
+
+Run following command to export `.pth` (pytorch model) to `ONNX`:
+
+Static shapes:
+```
+python -m scripts.onnx_export -w pytorch/model/path -n network/arch/name
+```
+
+Dynamix shapes:
+```
+python -m scripts.onnx_export -w pytorch/model/path -n network/arch/name --dynamic
+```
+
 ## 🧪 Evaluating RetinaFace on WiderFace Dataset
 
 ### 1. Get and Install WiderFace Evaluation Tool

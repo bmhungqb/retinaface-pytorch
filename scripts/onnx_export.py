@@ -25,6 +25,11 @@ def parse_arguments():
         ],
         help='Backbone network architecture to use'
     )
+    parser.add_argument(
+        '--dynamic',
+        action='store_true',
+        help='Enable dynamic batch size and input dimensions for ONNX export'
+    )
 
     return parser.parse_args()
 
@@ -44,7 +49,7 @@ def onnx_export(params):
     model.to(device)
 
     # Load weights
-    state_dict = torch.load(params.weights, map_location=device, weights_only=True)
+    state_dict = torch.load(params.weights, map_location=device)
     model.load_state_dict(state_dict)
     print("Model loaded successfully!")
 
@@ -56,29 +61,38 @@ def onnx_export(params):
     onnx_model = f'{fname}.onnx'
     print(f"==> Exporting model to ONNX format at '{onnx_model}'")
 
-    # Create dummy input (batch_size=1, channels=3, height=640, width=640)
+    # Create dummy input tensor
     x = torch.randn(1, 3, 640, 640).to(device)
 
-    # Export model to ONNX
-    torch.onnx.export(
-        model,                # PyTorch Model
-        x,                    # Model input
-        onnx_model,          # Output file path
-        export_params=True,   # Store the trained parameter weights inside the model file
-        opset_version=11,    # ONNX version to export the model to
-        do_constant_folding=True,  # Whether to execute constant folding for optimization
-        input_names=['input'],     # Model's input names
-        output_names=['loc', 'conf', 'landmarks'],  # Model's output names
-        dynamic_axes={
+    # Prepare dynamic axes if --dynamic flag is enabled
+    dynamic_axes = None
+    if params.dynamic:
+        dynamic_axes = {
             'input': {
                 0: 'batch_size',
                 2: 'height',
                 3: 'width'
             },
-            'loc': {0: 'batch_size'},      # Location output
-            'conf': {0: 'batch_size'},     # Confidence output
-            'landmarks': {0: 'batch_size'}  # Landmarks output
+            'loc': {0: 'batch_size'},
+            'conf': {0: 'batch_size'},
+            'landmarks': {0: 'batch_size'}
         }
+        print("Exporting model with dynamic input shapes.")
+
+    else:
+        print("Exporting model with fixed input size: (1, 3, 640, 640)")
+
+    # Export model to ONNX
+    torch.onnx.export(
+        model,                # PyTorch Model
+        x,                    # Model input
+        onnx_model,           # Output file path
+        export_params=True,    # Store the trained parameter weights inside the model file
+        opset_version=11,      # ONNX version to export the model to
+        do_constant_folding=True,  # Whether to execute constant folding for optimization
+        input_names=['input'],     # Model's input names
+        output_names=['loc', 'conf', 'landmarks'],  # Model's output names
+        dynamic_axes=dynamic_axes  # Use dynamic or static depending on flag
     )
 
     print(f"Model exported successfully to {onnx_model}")
