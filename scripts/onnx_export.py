@@ -70,8 +70,8 @@ def onnx_export(params):
         dynamic_axes = {
             'input': {
                 0: 'batch_size',
-                2: 'height',
-                3: 'width'
+                2: 'height',    # if shape is static, comment this line
+                3: 'width'      # if shape is static, comment this line
             },
             'loc': {0: 'batch_size'},
             'conf': {0: 'batch_size'},
