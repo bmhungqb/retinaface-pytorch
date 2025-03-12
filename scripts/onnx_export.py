@@ -88,7 +88,7 @@ def onnx_export(params):
         x,                    # Model input
         onnx_model,           # Output file path
         export_params=True,    # Store the trained parameter weights inside the model file
-        opset_version=11,      # ONNX version to export the model to
+        opset_version=16,      # ONNX version to export the model to
         do_constant_folding=True,  # Whether to execute constant folding for optimization
         input_names=['input'],     # Model's input names
         output_names=['loc', 'conf', 'landmarks'],  # Model's output names
