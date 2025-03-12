@@ -19,13 +19,13 @@ def parse_arguments():
     parser.add_argument(
         '-w', '--weights',
         type=str,
-        default='./weights/Resnet34_Final.pth',
+        default='./weights/retinaface_mv2.pth',
         help='Path to the trained model weights'
     )
     parser.add_argument(
-        '--network',
+        '-n', '--network',
         type=str,
-        default='resnet34',
+        default='mobilenetv2',
         choices=[
             'mobilenetv1', 'mobilenetv1_0.25', 'mobilenetv1_0.50',
             'mobilenetv2', 'resnet50', 'resnet34', 'resnet18'
@@ -65,6 +65,32 @@ def parse_arguments():
         type=float,
         default=0.6,
         help='Visualization threshold for displaying detections'
+    )
+    
+    # Video saving options
+    parser.add_argument(
+        '--source',
+        type=str,
+        default='0',
+        help='Input video path or Webcam source (default: 0)'
+    )
+    
+    parser.add_argument(
+        '--save-video',
+        action='store_true',
+        help='Enable saving the processed video'
+    )
+    parser.add_argument(
+        '--output-path',
+        type=str,
+        default='./output_video.mp4',
+        help='Path to save the output video'
+    )
+    parser.add_argument(
+        '--fps',
+        type=float,
+        default=24.0,
+        help='FPS for the output video'
     )
 
     return parser.parse_args()
@@ -123,10 +149,36 @@ def main(params):
     print("Model loaded successfully!")
 
     # Open webcam
-    cap = cv2.VideoCapture(0)
+    if params.source.isdigit():
+        cap = cv2.VideoCapture(int(params.source))
+    else:
+        cap = cv2.VideoCapture(params.source)
+    
     if not cap.isOpened():
-        print("Error: Could not open webcam.")
+        print("Error: Could not open video source.")
         return
+
+    # Get video properties for output writer
+    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    # Initialize video writer if save option is enabled
+    video_writer = None
+    if params.save_video:
+        # Ensure output directory exists
+        output_dir = os.path.dirname(params.output_path)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        # Define codec and create VideoWriter object
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # You can change the codec as needed
+        video_writer = cv2.VideoWriter(
+            params.output_path,
+            fourcc,
+            params.fps,
+            (frame_width, frame_height)
+        )
+        print(f"Video will be saved to: {params.output_path}")
 
     while True:
         ret, frame = cap.read()
@@ -190,6 +242,10 @@ def main(params):
         # draw detections on the frame
         draw_detections(frame, detections, params.vis_threshold)
 
+        # Write frame to output video if enabled
+        if params.save_video and video_writer is not None:
+            video_writer.write(frame)
+
         # Display the resulting frame
         cv2.imshow('Webcam Inference', frame)
 
@@ -197,9 +253,14 @@ def main(params):
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-    # Release the webcam and close windows
+    # Release resources
     cap.release()
+    if video_writer is not None:
+        video_writer.release()
     cv2.destroyAllWindows()
+
+    if params.save_video:
+        print(f"Video saved successfully to {params.output_path}")
 
 
 if __name__ == '__main__':

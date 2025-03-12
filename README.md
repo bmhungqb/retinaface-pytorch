@@ -186,10 +186,15 @@ Download [mobilenetv1_0.25.pretrained](https://github.com/yakhyo/retinaface-pyto
 
 ## 📊 Inference
 
-Inference the model using:
+Image Inference:
 
 ```bash
-python detect.py --network mobilenetv1 --weights retinaface_mv1.pth
+python detect.py -n mobilenetv1 -w retinaface_mv1.pth
+```
+
+Video Inference
+```bash
+python webcam_inference.py -n mobilenetv2 -w retinaface_mv2.pth --source [path/to/video&webcam] --save-video
 ```
 
 <div align="center">

@@ -22,9 +22,9 @@ def parse_arguments():
         help='Path to the trained model weights'
     )
     parser.add_argument(
-        '--network',
+        '-n', '--network',
         type=str,
-        default='resnet34',
+        default='mobilenetv2',
         choices=[
             'mobilenetv1', 'mobilenetv1_0.25', 'mobilenetv1_0.50',
             'mobilenetv2', 'resnet50', 'resnet34', 'resnet18'
