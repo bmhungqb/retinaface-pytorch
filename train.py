@@ -1,7 +1,9 @@
 import os
 import time
 import random
+import logging
 import numpy as np
+import matplotlib.pyplot as plt
 
 import torch
 from torch.utils.data import DataLoader
@@ -9,7 +11,6 @@ from torch.utils.data import DataLoader
 from config import get_config
 from models import RetinaFace
 from layers import PriorBox, MultiBoxLoss
-
 from utils.dataset import WiderFaceDetection
 from utils.transform import Augmentation
 
@@ -30,25 +31,19 @@ def parse_args():
         default='resnet34',
         choices=[
             'mobilenetv1', 'mobilenetv1_0.25', 'mobilenetv1_0.50',
-            'mobilenetv2', 'resnet50', 'resnet34', 'resnet18'
+            'mobilenetv2', 'mobilenetv2_0.25', 'resnet50', 'resnet34', 'resnet18'
         ],
         help='Backbone network architecture to use'
     )
     parser.add_argument('--num-workers', default=8, type=int, help='Number of workers to use for data loading.')
-
-    # Traning arguments
-    parser.add_argument('--num-classes', type=int, default=2, help='Number of classes in the dataset.')
-    parser.add_argument('--batch-size', default=32, type=int, help='Number of samples in each batch during training.')
+    parser.add_argument('--batch-size', default=32, type=int, help='Batch size.')
     parser.add_argument('--print-freq', type=int, default=10, help='Print frequency during training.')
-
-    # Optimizer and scheduler arguments
     parser.add_argument('--learning-rate', default=1e-3, type=float, help='Initial learning rate.')
     parser.add_argument('--lr-warmup-epochs', type=int, default=1, help='Number of warmup epochs.')
     parser.add_argument('--power', type=float, default=0.9, help='Power for learning rate policy.')
-    parser.add_argument('--momentum', default=0.9, type=float, help='Momentum factor in SGD optimizer.')
-    parser.add_argument('--weight-decay', default=5e-4, type=float, help='Weight decay (L2 penalty) for the optimizer.')
+    parser.add_argument('--momentum', default=0.9, type=float, help='Momentum for SGD optimizer.')
+    parser.add_argument('--weight-decay', default=5e-4, type=float, help='Weight decay (L2 penalty).')
     parser.add_argument('--gamma', default=0.1, type=float, help='Gamma update for SGD.')
-
     parser.add_argument(
         '--save-dir',
         default='./weights',
@@ -58,14 +53,22 @@ def parse_args():
     parser.add_argument(
         '--resume',
         action='store_true',
-        help='Resume training from checkpoint.ckpt from weights folder')
-
-    args = parser.parse_args()
-
-    return args
+        help='Resume training from checkpoint')
+    return parser.parse_args()
 
 
-rgb_mean = (104, 117, 123)  # bgr order
+def setup_logging(save_dir, network):
+    os.makedirs(save_dir, exist_ok=True)
+    log_file = os.path.join(save_dir, f'training_{network}.log')
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s %(levelname)s: %(message)s',
+        handlers=[
+            logging.FileHandler(log_file),
+            logging.StreamHandler()
+        ]
+    )
+    logging.info('Logging initialized')
 
 
 def random_seed(seed=42):
@@ -81,51 +84,59 @@ def train_one_epoch(
     data_loader,
     epoch,
     device,
-    print_freq=10,
-    scaler=None
-) -> None:
+    print_freq=10
+) -> float:
     model.train()
-    batch_loss = []
+    running_loss = 0.0
     for batch_idx, (images, targets) in enumerate(data_loader):
         start_time = time.time()
         images = images.to(device)
-        targets = [target.to(device) for target in targets]
+        targets = [t.to(device) for t in targets]
 
-        with torch.amp.autocast("cuda", enabled=scaler is not None):
-            outputs = model(images)
-            loss_loc, loss_conf, loss_land = criterion(outputs, targets)
-            loss = cfg['loc_weight'] * loss_loc + loss_conf + loss_land
+        outputs = model(images)
+        loss_loc, loss_conf, loss_land = criterion(outputs, targets)
+        loss = cfg['loc_weight'] * loss_loc + loss_conf + loss_land
 
         optimizer.zero_grad()
-        if scaler is not None:
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
-        else:
-            loss.backward()
-            optimizer.step()
+        loss.backward()
+        optimizer.step()
 
-        # Print training status
+        running_loss += loss.item()
+
         if (batch_idx + 1) % print_freq == 0:
-            lr = optimizer.param_groups[0]["lr"]
-            print(
-                f"Epoch: {epoch + 1}/{cfg['epochs']} | Batch: {batch_idx + 1}/{len(data_loader)} | "
-                f"Loss Localization : {loss_loc.item():.4f} | Classification: {loss_conf.item():.4f} | "
-                f"Landmarks: {loss_land.item():.4f} | "
-                f"LR: {lr:.8f} | Time: {(time.time() - start_time):.4f} s"
-            )
-        batch_loss.append(loss.item())
-    print(f"Average batch loss: {np.mean(batch_loss):.7f}")
+            lr = optimizer.param_groups[0]['lr']
+            msg = (f"Epoch [{epoch+1}/{cfg['epochs']}], Step [{batch_idx+1}/{len(data_loader)}], "
+                   f"Loss loc: {loss_loc.item():.4f}, conf: {loss_conf.item():.4f}, "
+                   f"land: {loss_land.item():.4f}, lr: {lr:.6f}, "
+                   f"time: {(time.time()-start_time):.3f}s")
+            logging.info(msg)
+
+    avg_loss = running_loss / len(data_loader)
+    logging.info(f"Epoch {epoch+1} Average Loss: {avg_loss:.4f}")
+    return avg_loss
+
+
+def plot_losses(losses, save_dir):
+    plt.figure()
+    plt.plot(range(1, len(losses)+1), losses)
+    plt.xlabel('Epoch')
+    plt.ylabel('Average Loss')
+    plt.title('Training Loss per Epoch')
+    plt.grid(True)
+    plt.savefig(os.path.join(save_dir, 'loss_curve.png'))
+    plt.close()
 
 
 def main(params):
+    global cfg
+    cfg = get_config(params.network)
     random_seed()
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    # Create folder to save weights if not exists
-    os.makedirs(params.save_dir, exist_ok=True)
+    setup_logging(params.save_dir, params.network)
+    logging.info(f"Using device: {device}")
 
-    # Prepare dataset and data loaders
+    # Data
     dataset = WiderFaceDetection(params.train_data, Augmentation(cfg['image_size'], rgb_mean))
     data_loader = DataLoader(
         dataset,
@@ -136,75 +147,58 @@ def main(params):
         pin_memory=True,
         drop_last=True
     )
-    print("Data successfully loaded!")
+    logging.info('Data loaded')
 
-    # Generate prior boxes
+    # Priors and loss
     priorbox = PriorBox(cfg, image_size=(cfg['image_size'], cfg['image_size']))
-    priors = priorbox.generate_anchors()
-    priors = priors.to(device)
+    priors = priorbox.generate_anchors().to(device)
+    criterion = MultiBoxLoss(priors, threshold=0.35, neg_pos_ratio=7, variance=cfg['variance'], device=device)
 
-    # Multi Box Loss
-    criterion = MultiBoxLoss(priors=priors, threshold=0.35, neg_pos_ratio=7, variance=cfg['variance'], device=device)
-
-    # Initialize model
-    model = RetinaFace(cfg=cfg)
-    model.to(device)
-
-    # Optimizer
-    parameters = model.parameters()
-    optimizer = torch.optim.SGD(
-        parameters,
-        lr=params.learning_rate,
-        momentum=params.momentum,
-        weight_decay=params.weight_decay
-    )
-
-    # Learning rate scheduler
-    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=cfg['milestones'], gamma=params.gamma)
+    # Model and optimizer
+    model = RetinaFace(cfg).to(device)
+    optimizer = torch.optim.SGD(model.parameters(), lr=params.learning_rate,
+                                momentum=params.momentum, weight_decay=params.weight_decay)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=cfg['milestones'], gamma=params.gamma)
 
     start_epoch = 0
     if params.resume:
-        try:
-            checkpoint = torch.load(f"{params.save_dir}/{params.network}_checkpoint.ckpt", map_location="cpu", weights_only=True)
-            model.load_state_dict(checkpoint["model"])
-            optimizer.load_state_dict(checkpoint["optimizer"])
-            lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
-            start_epoch = checkpoint["epoch"] + 1
-            print(f"Checkpoint successfully loaded from {params.save_dir}/{params.network}_checkpoint.ckpt")
-        except Exception as e:
-            print(f"Exception occurred while loading checkpoint, exception message: {e}")
+        ckpt_path = os.path.join(params.save_dir, f"{params.network}_checkpoint.ckpt")
+        if os.path.exists(ckpt_path):
+            checkpoint = torch.load(ckpt_path, map_location='cpu')
+            model.load_state_dict(checkpoint['model'])
+            optimizer.load_state_dict(checkpoint['optimizer'])
+            scheduler.load_state_dict(checkpoint['lr_scheduler'])
+            start_epoch = checkpoint['epoch'] + 1
+            logging.info(f"Resumed from epoch {start_epoch}")
 
-    print("Training started!")
+    epoch_losses = []
+    logging.info('Starting training')
     for epoch in range(start_epoch, cfg['epochs']):
-        train_one_epoch(
-            model,
-            criterion,
-            optimizer,
-            data_loader,
-            epoch,
-            device,
-            params.print_freq,
-            scaler=None
+        avg_loss = train_one_epoch(
+            model, criterion, optimizer, data_loader,
+            epoch, device, params.print_freq
         )
+        epoch_losses.append(avg_loss)
 
-        ckpt = {
-            "model": model.state_dict(),
-            "optimizer": optimizer.state_dict(),
-            "lr_scheduler": lr_scheduler.state_dict(),
-            "epoch": epoch,
-        }
+        scheduler.step()
 
-        lr_scheduler.step()
+        # Save checkpoints
+        ckpt = {'model': model.state_dict(), 'optimizer': optimizer.state_dict(),
+                'lr_scheduler': scheduler.state_dict(), 'epoch': epoch}
+        torch.save(ckpt, os.path.join(params.save_dir, f"{params.network}_checkpoint.ckpt"))
+        torch.save(model.state_dict(), os.path.join(params.save_dir, f"{params.network}_last.pth"))
 
-        torch.save(ckpt, f'{params.save_dir}/{params.network}_checkpoint.ckpt')
-        torch.save(model.state_dict(), f'{params.save_dir}/{params.network}_last.pth')
+        # Plot every 20 epochs
+        if (epoch + 1) % 20 == 0:
+            plot_losses(epoch_losses, params.save_dir)
 
-    # save final model
-    state = model.state_dict()
-    torch.save(state, f'{params.save_dir}/{params.network}_final.pth')
+    # Final plot
+    plot_losses(epoch_losses, params.save_dir)
+    torch.save(model.state_dict(), os.path.join(params.save_dir, f"{params.network}_final.pth"))
+    logging.info('Training complete')
 
 
 if __name__ == '__main__':
     args = parse_args()
-    cfg = get_config(args.network)
+    rgb_mean = (104, 117, 123)
     main(args)

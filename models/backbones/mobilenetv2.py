@@ -6,7 +6,7 @@ from models.common import _make_divisible, Conv2dNormActivation, IntermediateLay
 
 from typing import Any, List, Optional
 
-__all__ = ["mobilenet_v2"]
+__all__ = ["mobilenet_v2", "mobilenet_v2_025"]
 
 
 class InvertedResidual(nn.Module):
@@ -166,6 +166,16 @@ def mobilenet_v2(*, pretrained: bool = True, progress: bool = True, **kwargs: An
         model.load_state_dict(state_dict)
 
     return model
+
+def mobilenet_v2_025(
+    *,
+    pretrained: bool = False,
+    progress: bool = True,
+    **kwargs: Any
+) -> MobileNetV2:
+    if pretrained:
+        raise ValueError("No pretrained weights available for MobileNetV2-0.25")
+    return mobilenet_v2(pretrained=False, progress=progress, width_mult=0.25, **kwargs)
 
 
 if __name__ == "__main__":

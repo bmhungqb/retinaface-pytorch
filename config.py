@@ -4,6 +4,7 @@ def get_config(network):
         "mobilenetv1_0.25": cfg_mnet_025,
         "mobilenetv1_0.50": cfg_mnet_050,
         "mobilenetv2": cfg_mnet_v2,
+        "mobilenetv2_0.25": cfg_mnet_025,
         "resnet50": cfg_re50,
         "resnet34": cfg_re34,
         "resnet18": cfg_re18
@@ -75,6 +76,23 @@ cfg_mnet_v2 = {
     'pretrain': True,
     'return_layers': [6, 13, 18],
     'in_channel': 32,
+    'out_channel': 128
+}
+
+cfg_mnet_v2_025 = {
+    'name': 'mobilenet_v2_0.25',
+    'min_sizes': [[16, 32], [64, 128], [256, 512]],
+    'steps': [8, 16, 32],
+    'variance': [0.1, 0.2],
+    'clip': False,
+    'loc_weight': 2.0,
+    'batch_size': 32,
+    'epochs': 250,
+    'milestones': [190, 220],
+    'image_size': 640,
+    'pretrain': False,
+    'return_layers': [6, 13, -1],
+    'in_channel': 8,
     'out_channel': 128
 }
 

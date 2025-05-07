@@ -10,6 +10,7 @@ from models.backbones import (
     mobilenet_v1_050,
     mobilenet_v1,
     mobilenet_v2,
+    mobilenet_v2_025,
     resnet18,
     resnet34,
     resnet50
@@ -29,8 +30,8 @@ def get_layer_extractor(cfg, backbone):
     Returns:
         IntermediateLayerGetter or IntermediateLayerGetterByIndex: The appropriate layer getter.
     """
-    if cfg['name'] == "mobilenet_v2":
-        return IntermediateLayerGetterByIndex(backbone, [6, 13, 18])
+    if cfg['name'] == "mobilenet_v2" or cfg['name'] == 'mobilenet_v2_0.25':
+        return IntermediateLayerGetterByIndex(backbone, cfg['return_layers'])
     else:
         return _utils.IntermediateLayerGetter(backbone, cfg['return_layers'])
 
@@ -51,6 +52,7 @@ def build_backbone(name, pretrained=False):
         'mobilenet0.50': mobilenet_v1_050,
         'mobilenet_v1': mobilenet_v1,
         'mobilenet_v2': lambda: mobilenet_v2(pretrained=pretrained),
+        'mobilenet_v2_0.25': lambda: mobilenet_v2_025(pretrained=pretrained),
         'resnet50': lambda: resnet50(pretrained=pretrained),
         'resnet34': lambda: resnet34(pretrained=pretrained),
         'resnet18': lambda: resnet18(pretrained=pretrained)
@@ -149,6 +151,9 @@ class RetinaFace(nn.Module):
 
         if cfg['name'] == "mobilenet_v2":
             fpn_in_channels = [32, 96, 1280]  # mobilenet v2
+        elif cfg['name'] == 'mobilenetv2_0.25':
+            idxs = [6, 13, len(backbone.features) - 1]
+            fpn_in_channels = [backbone.features[i].out_channels for i in idxs]
         else:
             fpn_in_channels = [
                 base_in_channels * 2,
