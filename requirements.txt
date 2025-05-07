@@ -5,3 +5,5 @@ numpy==2.1.2
 onnx==1.17.0
 onnxruntime==1.19.0
 opencv-python==4.10.0.84
+matplotlib     
+pillow         
