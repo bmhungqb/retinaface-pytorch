@@ -4,7 +4,7 @@ def get_config(network):
         "mobilenetv1_0.25": cfg_mnet_025,
         "mobilenetv1_0.50": cfg_mnet_050,
         "mobilenetv2": cfg_mnet_v2,
-        "mobilenetv2_0.25": cfg_mnet_025,
+        "mobilenetv2_0.25": cfg_mnet_v2_025,
         "resnet50": cfg_re50,
         "resnet34": cfg_re34,
         "resnet18": cfg_re18

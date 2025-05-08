@@ -29,7 +29,7 @@ def parse_arguments():
         default='mobilenetv1',
         choices=[
             'mobilenetv1', 'mobilenetv1_0.25', 'mobilenetv1_0.50',
-            'mobilenetv2', 'resnet50', 'resnet34', 'resnet18'
+            'mobilenetv2', 'mobilenetv2_0.25', 'resnet50', 'resnet34', 'resnet18'
         ],
         help='Backbone network architecture'
     )
