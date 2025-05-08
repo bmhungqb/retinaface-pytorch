@@ -37,7 +37,7 @@ def parse_args():
     )
     parser.add_argument('--num-workers', default=8, type=int, help='Number of workers to use for data loading.')
     parser.add_argument('--batch-size', default=32, type=int, help='Batch size.')
-    parser.add_argument('--print-freq', type=int, default=10, help='Print frequency during training.')
+    parser.add_argument('--print-freq', type=int, default=50, help='Print frequency during training.')
     parser.add_argument('--learning-rate', default=1e-3, type=float, help='Initial learning rate.')
     parser.add_argument('--lr-warmup-epochs', type=int, default=1, help='Number of warmup epochs.')
     parser.add_argument('--power', type=float, default=0.9, help='Power for learning rate policy.')
@@ -84,7 +84,7 @@ def train_one_epoch(
     data_loader,
     epoch,
     device,
-    print_freq=10
+    print_freq=50
 ) -> float:
     model.train()
     running_loss = 0.0
