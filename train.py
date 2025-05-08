@@ -110,6 +110,7 @@ def train_one_epoch(
                    f"land: {loss_land.item():.4f}, lr: {lr:.6f}, "
                    f"time: {(time.time()-start_time):.3f}s")
             logging.info(msg)
+            print(msg)
 
     avg_loss = running_loss / len(data_loader)
     logging.info(f"Epoch {epoch+1} Average Loss: {avg_loss:.4f}")
