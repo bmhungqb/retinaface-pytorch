@@ -91,7 +91,7 @@ cfg_mnet_v2_025 = {
     'milestones': [190, 220],
     'image_size': 640,
     'pretrain': False,
-    'return_layers': [6, 13, -1],
+    'return_layers': [6, 13, 18],
     'in_channel': 8,
     'out_channel': 128
 }

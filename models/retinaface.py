@@ -151,9 +151,8 @@ class RetinaFace(nn.Module):
 
         if cfg['name'] == "mobilenet_v2":
             fpn_in_channels = [32, 96, 1280]  # mobilenet v2
-        elif cfg['name'] == 'mobilenetv2_0.25':
-            idxs = [6, 13, len(backbone.features) - 1]
-            fpn_in_channels = [backbone.features[i].out_channels for i in idxs]
+        elif cfg['name'] == 'mobilenet_v2_0.25':
+            fpn_in_channels = [8, 24, 1280]
         else:
             fpn_in_channels = [
                 base_in_channels * 2,
