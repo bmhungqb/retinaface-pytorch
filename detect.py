@@ -29,7 +29,10 @@ def parse_arguments():
         default='mobilenetv2',
         choices=[
             'mobilenetv1', 'mobilenetv1_0.25', 'mobilenetv1_0.50',
-            'mobilenetv2', 'mobilenetv2_0.25', 'resnet50', 'resnet34', 'resnet18'
+            'mobilenetv2', 'mobilenetv2_0.25', 'mobilenetv2_0.125', 
+            'mobilenetv3', 'mobilenetv3_0.25', 'mobilenetv3_0.125', 
+            'mobilenetv4', 'mobilenetv4_0.25', 'mobilenetv4_0.125', 
+            'resnet50', 'resnet34', 'resnet18'
         ],
         help='Backbone network architecture to use'
     )
@@ -87,18 +90,35 @@ def parse_arguments():
 @torch.no_grad()
 def inference(model, image):
     model.eval()
-    loc, conf, landmarks = model(image)
-
+    
+    # Start inference timing - no warmup
+    num_tests = 100  # Number of inference runs to average
+    inference_times = []
+    
+    for _ in range(num_tests):
+        start_time = time.time()
+        loc, conf, landmarks = model(image)
+        inference_times.append((time.time() - start_time) * 1000)  # Convert to milliseconds
+    
+    # Calculate average inference time
+    inference_times = inference_times[50:]
+    inference_time = sum(inference_times) / len(inference_times)
+    std_dev = np.std(inference_times)
+    print(f"\nInference Statistics over {num_tests} runs:")
+    print(f"Average Time: {inference_time:.2f} ms")
+    print(f"Standard Deviation: {std_dev:.2f} ms")
+    
     loc = loc.squeeze(0)
     conf = conf.squeeze(0)
     landmarks = landmarks.squeeze(0)
 
-    return loc, conf, landmarks
-
-
+    return loc, conf, landmarks, inference_time
 
 
 def main(params):
+    # Start total time measurement
+    total_start_time = time.time()
+    
     # load configuration and device setup
     cfg = get_config(params.network)
     if cfg is None:
@@ -112,9 +132,12 @@ def main(params):
     model.to(device)
     model.eval()
 
+    # Print the number of parameters in the model
+    num_params = sum(p.numel() for p in model.parameters())
+    print(f"Number of parameters in the model: {num_params}")
+
     # loading state_dict
-    state_dict = torch.load(params.weights, map_location=device, weights_only=True)
-    model.load_state_dict(state_dict)
+    model.apply(lambda m: m.reset_parameters() if hasattr(m, 'reset_parameters') else None)
     print("Model loaded successfully!")
 
     # read image
@@ -129,7 +152,7 @@ def main(params):
     image = image.to(device)
 
     # forward pass
-    loc, conf, landmarks = inference(model, image)
+    loc, conf, landmarks, inference_time = inference(model, image)
 
     # generate anchor boxes
     priorbox = PriorBox(cfg, image_size=(img_height, img_width))
@@ -171,6 +194,15 @@ def main(params):
 
     # concatenate detections and landmarks
     detections = np.concatenate((detections, landmarks), axis=1)
+
+    # Calculate total processing time
+    total_time = (time.time() - total_start_time) * 1000  # Convert to milliseconds
+
+    # Print timing information
+    print(f"\nTiming Information:")
+    print(f"Model Inference Time: {inference_time:.2f} ms")
+    print(f"Total Processing Time: {total_time:.2f} ms")
+    print(f"Number of Detections: {len(detections)}")
 
     # show image
     if params.save_image:

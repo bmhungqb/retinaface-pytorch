@@ -6,7 +6,7 @@ from models.common import _make_divisible, Conv2dNormActivation, IntermediateLay
 
 from typing import Any, List, Optional
 
-__all__ = ["mobilenet_v2", "mobilenet_v2_025"]
+__all__ = ["mobilenet_v2", "mobilenet_v2_025", "mobilenet_v2_0125"]
 
 
 class InvertedResidual(nn.Module):
@@ -64,6 +64,7 @@ class MobileNetV2(nn.Module):
         inverted_residual_setting: Optional[List[List[int]]] = None,
         round_nearest: int = 8,
         dropout: float = 0.2,
+        name: str = "mobilenet_v2"
     ) -> None:
         """
         MobileNet V2 main class
@@ -74,15 +75,13 @@ class MobileNetV2(nn.Module):
             inverted_residual_setting: Network structure
             round_nearest (int): Round the number of channels in each layer to be a multiple of this number
             Set to 1 to turn off rounding
-            block: Module specifying inverted residual building block for mobilenet
             dropout (float): The droupout probability
-
+            name (str): Model variant name
         """
         super().__init__()
 
         input_channel = 32
         last_channel = 1280
-
         if inverted_residual_setting is None:
             inverted_residual_setting = [
                 # t, c, n, s
@@ -103,7 +102,8 @@ class MobileNetV2(nn.Module):
 
         # building first layer
         input_channel = _make_divisible(input_channel * width_mult, round_nearest)
-        self.last_channel = _make_divisible(last_channel * max(1.0, width_mult), round_nearest)
+        self.last_channel = _make_divisible(last_channel * max(0.0, width_mult), round_nearest)
+        print("input_channel: ", input_channel, "last_channel: ", self.last_channel)
         features: List[nn.Module] = [
             Conv2dNormActivation(3, input_channel, stride=2, activation_layer=nn.ReLU6)
         ]
@@ -147,45 +147,86 @@ class MobileNetV2(nn.Module):
         x = self.features(x)
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
-
         x = self.classifier(x)
         return x
+        
+    def count_parameters(self):
+        """Count the number of trainable parameters in the model"""
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
 def mobilenet_v2(*, pretrained: bool = True, progress: bool = True, **kwargs: Any) -> MobileNetV2:
-
+    """
+    Constructs a MobileNetV2 architecture with width_mult=1.0
+    
+    Args:
+        pretrained (bool): Whether to load pretrained ImageNet weights
+        progress (bool): Whether to display download progress for weights
+        **kwargs (Any): Additional arguments to pass to the model
+    """
     if pretrained:
         weights = MobileNet_V2_Weights.IMAGENET1K_V1
     else:
         weights = None
 
-    model = MobileNetV2(**kwargs)
+    model = MobileNetV2(width_mult=1.0, name="mobilenet_v2", **kwargs)
 
     if weights is not None:
         state_dict = weights.get_state_dict(progress=progress, check_hash=True)
         model.load_state_dict(state_dict)
-
+    
+    param_count = model.count_parameters()
+    print(f"MobileNetV2 parameter count: {param_count}")
+    
     return model
 
-def mobilenet_v2_025(
-    *,
-    pretrained: bool = False,
-    progress: bool = True,
-    **kwargs: Any
-) -> MobileNetV2:
+
+def mobilenet_v2_025(*, pretrained: bool = False, progress: bool = True, **kwargs: Any) -> MobileNetV2:
+    """
+    Constructs a MobileNetV2 architecture with width_mult=0.25
+    
+    Args:
+        pretrained (bool): Not available for this variant
+        progress (bool): Whether to display download progress for weights
+        **kwargs (Any): Additional arguments to pass to the model
+    """
     if pretrained:
         raise ValueError("No pretrained weights available for MobileNetV2-0.25")
-    return mobilenet_v2(pretrained=False, progress=progress, width_mult=0.25, **kwargs)
+    
+    model = MobileNetV2(width_mult=0.25, name="mobilenet_v2_025", **kwargs)
+    
+    param_count = model.count_parameters()
+    print(f"MobileNetV2_025 parameter count: {param_count}")
+    
+    return model
 
+def mobilenet_v2_0125(*, pretrained: bool = False, progress: bool = True, **kwargs: Any) -> MobileNetV2:
+    """
+    Constructs a MobileNetV2 architecture with width_mult=0.125
+    
+    Args:
+        pretrained (bool): Not available for this variant
+        progress (bool): Whether to display download progress for weights
+        **kwargs (Any): Additional arguments to pass to the model
+    """
+    if pretrained:
+        raise ValueError("No pretrained weights available for MobileNetV2-0.125")
+    
+    model = MobileNetV2(width_mult=0.125, name="mobilenet_v2_0125", **kwargs)
+    
+    param_count = model.count_parameters()
+    print(f"MobileNetV2_0125 parameter count: {param_count}")
+    
+    return model
 
 if __name__ == "__main__":
-    model = mobilenet_v2()
-    print(model)
-    x = torch.randn(1, 3, 640, 640)
-    t = IntermediateLayerGetterByIndex(model, [6, 13, 18])
-
-    a, b, c = list(t(x).values())
-
-    print(a.size())
-    print(b.size())
-    print(c.size())
+    # Test all three model variants
+    print("Testing original MobileNetV2:")
+    model_orig = mobilenet_v2(pretrained=False)
+    param_count_orig = model_orig.count_parameters()
+    print(f"MobileNetV2 parameter count: {param_count_orig}")
+    
+    print("\nTesting MobileNetV2_025:")
+    model_025 = mobilenet_v2_025()
+    param_count_025 = model_025.count_parameters()
+    print(f"MobileNetV2_025 parameter count: {param_count_025}")

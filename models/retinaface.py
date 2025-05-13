@@ -11,6 +11,10 @@ from models.backbones import (
     mobilenet_v1,
     mobilenet_v2,
     mobilenet_v2_025,
+    mobilenet_v2_0125,
+    mobilenet_v3,
+    mobilenet_v3_025,
+    mobilenet_v3_0125,
     resnet18,
     resnet34,
     resnet50
@@ -30,7 +34,7 @@ def get_layer_extractor(cfg, backbone):
     Returns:
         IntermediateLayerGetter or IntermediateLayerGetterByIndex: The appropriate layer getter.
     """
-    if cfg['name'] == "mobilenet_v2" or cfg['name'] == 'mobilenet_v2_0.25':
+    if cfg['name'] == "mobilenet_v2" or cfg['name'] == 'mobilenet_v2_0.25' or cfg['name'] == 'mobilenet_v2_0.125':
         return IntermediateLayerGetterByIndex(backbone, cfg['return_layers'])
     else:
         return _utils.IntermediateLayerGetter(backbone, cfg['return_layers'])
@@ -52,7 +56,11 @@ def build_backbone(name, pretrained=False):
         'mobilenet0.50': mobilenet_v1_050,
         'mobilenet_v1': mobilenet_v1,
         'mobilenet_v2': lambda: mobilenet_v2(pretrained=pretrained),
-        'mobilenet_v2_0.25': lambda: mobilenet_v2_025(pretrained=pretrained),
+        'mobilenet_v2_0.25': mobilenet_v2_025,
+        "mobilenet_v2_0.125": mobilenet_v2_0125,
+        'mobilenet_v3': mobilenet_v3,
+        'mobilenetv3_0.25': mobilenet_v3_025,
+        'mobilenetv3_0.125': mobilenet_v3_0125,
         'resnet50': lambda: resnet50(pretrained=pretrained),
         'resnet34': lambda: resnet34(pretrained=pretrained),
         'resnet18': lambda: resnet18(pretrained=pretrained)
@@ -152,7 +160,11 @@ class RetinaFace(nn.Module):
         if cfg['name'] == "mobilenet_v2":
             fpn_in_channels = [32, 96, 1280]  # mobilenet v2
         elif cfg['name'] == 'mobilenet_v2_0.25':
-            fpn_in_channels = [8, 24, 1280]
+            fpn_in_channels = [8, 24, 320]
+        elif cfg['name'] == 'mobilenet_v2_0.125':
+            fpn_in_channels = [8, 16, 160]
+        elif cfg['name'] == 'mobilenet_v4':
+            fpn_in_channels = [32, 64, 160]  # MobileNetV4
         else:
             fpn_in_channels = [
                 base_in_channels * 2,

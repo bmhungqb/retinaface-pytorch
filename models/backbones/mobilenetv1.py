@@ -63,6 +63,9 @@ class MobileNetV1(nn.Module):
 
         x = self.fc(x)
         return x
+    def count_parameters(self):
+        """Count the number of trainable parameters in the model"""
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
 def mobilenet_v1_025(pretrained: bool = True, num_classes: int = 1000):
@@ -70,15 +73,23 @@ def mobilenet_v1_025(pretrained: bool = True, num_classes: int = 1000):
     if pretrained:
         state_dict = torch.load("weights/mobilenetv1_025.pretrained", weights_only=True)
         model.load_state_dict(state_dict)
+    param_count = model.count_parameters()
+    print(f"MobileNetV1_025 parameter count: {param_count}")
     return model
 
 
 def mobilenet_v1_050(num_classes: int = 1000):
-    return MobileNetV1(width_mult=0.5, num_classes=num_classes)
+    model = MobileNetV1(width_mult=0.5, num_classes=num_classes)
+    param_count = model.count_parameters()
+    print(f"MobileNetV1_050 parameter count: {param_count}")
+    return model
 
 
 def mobilenet_v1(num_classes: int = 1000):
-    return MobileNetV1(width_mult=1.0, num_classes=num_classes)
+    model = MobileNetV1(width_mult=1.0, num_classes=num_classes)
+    param_count = model.count_parameters()
+    print(f"MobileNetV1 parameter count: {param_count}")
+    return model
 
 
 if __name__ == "__main__":
